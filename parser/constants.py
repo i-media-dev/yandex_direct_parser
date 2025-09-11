@@ -14,6 +14,22 @@ REPORT_FIELDS = [
     "Cost"
 ],
 
+TAGS = {
+    'dsa': 'dsa',
+    '-nz': 'nz',
+    '_nz': 'nz',
+    'shop': 'shoping',
+    'corporate': 'b2b',
+    'promo': 'акции',
+    'brand': 'бренд',
+    'cat-cv': 'кат + вендор',
+    'categor': 'категории',
+    'compet': 'конкуренты',
+    'config': 'конфигуратор',
+    'rmkt': 'ремарктеинг',
+    'usilenie': 'усиление',
+}
+
 CLIENT_LOGINS = [
     'citilink-nvsb', 'imedia-citilinkweb',
     'imedia-citilink2', 'imedia-citilink-blg',

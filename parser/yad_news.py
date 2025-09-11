@@ -12,7 +12,8 @@ from parser.constants import (
     DEFAULT_FOLDER,
     YAD_REPORTS_URL,
     REPORT_FIELDS,
-    REPORT_NAME
+    REPORT_NAME,
+    TAGS
 )
 from parser.logging_config import setup_logging
 
@@ -44,9 +45,7 @@ class DataSaveClient:
         try:
             file_path = Path(__file__).parent.parent / self.folder
             file_path.mkdir(parents=True, exist_ok=True)
-            cache_path = file_path / filename
-            cache_path.touch(exist_ok=True)
-            return cache_path
+            return file_path / filename
         except Exception as e:
             logging.error(f'Ошибка: {e}')
 
@@ -165,34 +164,10 @@ class DataSaveClient:
             return 'сеть'
 
     def _get_campaign_category(self, row):
-        if 'dsa' in row['CampaignName']:
-            return 'dsa'
-        elif '-nz' in row['CampaignName']:
-            return 'nz'
-        elif '_nz' in row['CampaignName']:
-            return 'nz'
-        elif 'shop' in row['CampaignName']:
-            return 'shoping'
-        elif 'corporate' in row['CampaignName']:
-            return 'b2b'
-        elif 'promo' in row['CampaignName']:
-            return 'акции'
-        elif 'brand' in row['CampaignName']:
-            return 'бренд'
-        elif 'cat-cv' in row['CampaignName']:
-            return 'кат + вендор'
-        elif 'categor' in row['CampaignName']:
-            return 'категории'
-        elif 'compet' in row['CampaignName']:
-            return 'конкуренты'
-        elif 'config' in row['CampaignName']:
-            return 'конфигуратор'
-        elif 'rmkt' in row['CampaignName']:
-            return 'ремарктеинг'
-        elif 'usilenie' in row['CampaignName']:
-            return 'усиление'
-        else:
-            return 'разное'
+        for tag, value in TAGS.items():
+            if tag in row['CampaignName']:
+                return value
+        return 'разное'
 
     def get_all_direct_data(self):
         combined_data = pd.DataFrame()
@@ -202,7 +177,7 @@ class DataSaveClient:
         for current_index, login in enumerate(self.logins):
             try:
                 logging.info(
-                    f'\rвыгрузка №{current_index + 1}/{len(self.logins)}, '
+                    f'выгрузка №{current_index + 1}/{len(self.logins)}, '
                     f'аккаунт: {login}'
                 )
                 data = self._get_direct_report(
@@ -223,7 +198,7 @@ class DataSaveClient:
                 time.sleep(1)
                 current_index += 1
             except Exception as e:
-                print(f'ошибка: {e}')
+                logging.error(f'ошибка: {e}')
                 current_index += 1
 
         combined_data['источник'] = 'yandex'
@@ -241,29 +216,58 @@ class DataSaveClient:
 
     def get_filtered_cache_data(self):
         temp_cache_path = self._get_file_path('cashe_new.csv')
-        old_df = pd.read_csv(
-            temp_cache_path,
-            sep=';',
-            encoding='cp1251',
-            header=0
-        )
-        for dates in self.dates_list:
-            old_df = old_df[~old_df['Date'].fillna('').str.contains(
-                fr'{dates}', case=False, na=False
-            )]
-        return old_df
+        try:
+            old_df = pd.read_csv(
+                temp_cache_path,
+                sep=';',
+                encoding='cp1251',
+                header=0
+            )
+            for dates in self.dates_list:
+                old_df = old_df[~old_df['Date'].fillna('').str.contains(
+                    fr'{dates}', case=False, na=False
+                )]
+            return old_df
+        except FileNotFoundError:
+            logging.warning('Файл кэша не найден. Первый запуск.')
+            return pd.DataFrame()
+        except pd.errors.EmptyDataError:
+            logging.warning('Файл кэша пустой.')
+            return pd.DataFrame()
+        except Exception as e:
+            logging.error(f'Ошибка: {e}')
+            raise
 
     def save_data(self, df_new, old_df):
-        temp_cache_path = self._get_file_path('cashe_new.csv')
-        for dates in self.dates_list:
-            old_df = old_df[~old_df['Date'].fillna('').str.contains(
-                fr'{dates}', case=False, na=False)]
+        try:
+            temp_cache_path = self._get_file_path('cashe_new.csv')
+            if df_new.empty:
+                logging.warning('Нет новых данных для сохранения')
+                return
+            if not isinstance(old_df, pd.DataFrame) or old_df.empty:
+                df_new.to_csv(
+                    temp_cache_path,
+                    index=False,
+                    header=True,
+                    sep=';',
+                    encoding='cp1251'
+                )
+                logging.info(
+                    'Новые данные сохранены. Исторические данные отсутствовали'
+                )
+                return
+            for dates in self.dates_list:
+                old_df = old_df[~old_df['Date'].fillna('').str.contains(
+                    fr'{dates}', case=False, na=False)]
 
-        old_df = pd.concat([df_new, old_df])
-        old_df.to_csv(
-            temp_cache_path,
-            index=False,
-            header=True,
-            sep=';',
-            encoding='cp1251'
-        )
+            old_df = pd.concat([df_new, old_df])
+            old_df.to_csv(
+                temp_cache_path,
+                index=False,
+                header=True,
+                sep=';',
+                encoding='cp1251'
+            )
+            logging.info('Данные успешно обновлены')
+        except Exception as e:
+            logging.error(f'Ошибка во время обновления: {e}')
