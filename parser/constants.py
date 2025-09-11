@@ -2,6 +2,8 @@ YAD_REPORTS_URL = 'https://api.direct.yandex.com/json/v5/reports'
 
 REPORT_NAME = 'all_reports1'
 
+DEFAULT_FOLDER = 'data'
+
 REPORT_FIELDS = [
     "Date",
     "CampaignName",

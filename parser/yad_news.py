@@ -1,220 +1,269 @@
 import json
 import logging
-import os
 import time
+from pathlib import Path
 
 from dotenv import load_dotenv
 import pandas as pd
 import requests
-from inspect import getsourcefile
 
-from parser.constants import CLIENT_LOGINS, YAD_REPORTS_URL, REPORT_FIELDS, REPORT_NAME
+from parser.constants import (
+    CLIENT_LOGINS,
+    DEFAULT_FOLDER,
+    YAD_REPORTS_URL,
+    REPORT_FIELDS,
+    REPORT_NAME
+)
 from parser.logging_config import setup_logging
 
 load_dotenv()
 setup_logging()
 
 
-token = str(os.getenv('YANDEX_DIRECT_TOKEN'))
+class DataSaveClient:
 
-dates_list = []
+    def __init__(
+        self,
+        token: str,
+        dates_list: list,
+        login: list = CLIENT_LOGINS,
+        folder_name: str = DEFAULT_FOLDER
+    ):
+        self.token = token
+        self.logins = login
+        self.dates_list = dates_list
+        self.folder = folder_name
 
-
-def get_direct_report(token, login, date_from, date_to):
-
-    def u(x):
+    def _decode_if_bytes(self, x):
         if type(x) is type(b''):
             return x.decode('utf8')
         else:
             return x
 
-    response = requests.Response
+    def _get_file_path(self, filename: str):
+        try:
+            file_path = Path(__file__).parent.parent / self.folder
+            file_path.mkdir(parents=True, exist_ok=True)
+            cache_path = file_path / filename
+            cache_path.touch(exist_ok=True)
+            return cache_path
+        except Exception as e:
+            logging.error(f'Ошибка: {e}')
 
-    token = token
+    def _get_direct_report(
+        self,
+        login: str,
+        date_from: str,
+        date_to: str
+    ):
 
-    clientLogin = login
-
-    headers = {
-        "Authorization": "Bearer " + token,
-        "Client-Login": clientLogin,
-        "Accept-Language": "ru",
-        "processingMode": "auto"
-    }
-
-    body = {
-        "params": {
-            "SelectionCriteria": {
-                "DateFrom": date_from,
-                "DateTo": date_to
-            },
-            "FieldNames": REPORT_FIELDS[0],
-            "ReportName": u(REPORT_NAME),
-            "ReportType": "CUSTOM_REPORT",
-            "DateRangeType": "CUSTOM_DATE",
-            "Format": "TSV",
-            "IncludeVAT": "NO",
-            "IncludeDiscount": "NO"
+        response = requests.Response
+        headers = {
+            "Authorization": "Bearer " + self.token,
+            "Client-Login": login,
+            "Accept-Language": "ru",
+            "processingMode": "auto"
         }
-    }
 
-    body = json.dumps(body, indent=4)
+        body = {
+            "params": {
+                "SelectionCriteria": {
+                    "DateFrom": date_from,
+                    "DateTo": date_to
+                },
+                "FieldNames": REPORT_FIELDS[0],
+                "ReportName": REPORT_NAME,
+                "ReportType": "CUSTOM_REPORT",
+                "DateRangeType": "CUSTOM_DATE",
+                "Format": "TSV",
+                "IncludeVAT": "NO",
+                "IncludeDiscount": "NO"
+            }
+        }
 
-    while True:
-        try:
-            response = requests.post(YAD_REPORTS_URL, body, headers=headers)
-            response.encoding = 'utf-8'
-            if response.status_code == 400:
-                print('''Параметры запроса указаны неверно
-                или достигнут лимит отчетов в очереди''')
-                print('RequestId: {}'.format(
-                    response.headers.get('RequestId', False)))
-                print('JSON-код запроса: {}'.format(u(body)))
-                print('JSON-код ответа сервера: \n{}'.format(u(response.json())))
+        body = json.dumps(body, indent=4)
+
+        while True:
+            try:
+                response = requests.post(
+                    YAD_REPORTS_URL,
+                    body,
+                    headers=headers
+                )
+                response.encoding = 'utf-8'
+
+                if response.status_code == requests.codes.bad_request:
+
+                    logging.error(
+                        'Параметры запроса указаны неверно или достигнут '
+                        'лимит отчетов в очереди\n'
+                        'RequestId: '
+                        f'{response.headers.get('RequestId', None)}\n'
+                        f'JSON-код запроса: {self._decode_if_bytes(body)}\n'
+                        'JSON-код ответа сервера: '
+                        f'{self._decode_if_bytes(response.json())}'
+                    )
+                    break
+                elif response.status_code == requests.codes.ok:
+                    logging.info('Ответ успешно получен')
+                    break
+                elif response.status_code == requests.codes.created:
+                    retryIn = int(response.headers.get('retryIn', 60))
+                    logging.warning('Отчет еще создается')
+                    time.sleep(retryIn)
+                elif response.status_code == requests.codes.accepted:
+                    retryIn = int(response.headers.get('retryIn', 60))
+                    logging.warning('Отчет еще создается')
+                    time.sleep(retryIn)
+                elif response.status_code == \
+                        requests.codes.internal_server_error:
+                    logging.error(
+                        'Ошибка. Повторить запрос позднее.\n'
+                        'RequestId: '
+                        f'{response.headers.get('RequestId', None)}\n'
+                        'JSON-код ответа сервера: '
+                        f'{self._decode_if_bytes(response.json())}'
+                    )
+                    break
+                elif response.status_code == requests.codes.bad_gateway:
+                    logging.error(
+                        'Время формирования отчета превышено. '
+                        'Изменить параметры запроса.\n'
+                        'RequestId: '
+                        f'{response.headers.get('RequestId', None)}\n'
+                        f'JSON-код запроса: {self._decode_if_bytes(body)}\n'
+                        'JSON-код ответа сервера: '
+                        f'{self._decode_if_bytes(response.json())}'
+                    )
+                    break
+                else:
+                    logging.error(
+                        'Произошла непредвиденная ошибка.\n'
+                        'RequestId: '
+                        f'{response.headers.get('RequestId', None)}\n'
+                        f'JSON-код запроса: {self._decode_if_bytes(body)}\n'
+                        'JSON-код ответа сервера: '
+                        f'{self._decode_if_bytes(response.json())}'
+                    )
+                    break
+
+            except requests.exceptions.ConnectionError:
+                logging.error('Произошла ошибка соединения с сервером API')
                 break
-            elif response.status_code == 200:
-                format(u(response.text))
-                break
-            elif response.status_code == 201:
-                retryIn = int(response.headers.get('retryIn', 60))
-                time.sleep(retryIn)
-            elif response.status_code == 202:
-                retryIn = int(response.headers.get('retryIn', 60))
-                time.sleep(retryIn)
-            elif response.status_code == 500:
-                print(
-                    'Ошибка. Повторить запрос позднее')
-                print('RequestId: {}'.format(
-                    response.headers.get('RequestId', False)))
-                print('JSON-код ответа сервера: \n{}'.format(u(response.json())))
-                break
-            elif response.status_code == 502:
-                print('Время формирования отчета превышено')
-                print(
-                    'Изменить параметры запроса')
-                print('JSON-код запроса: {}'.format(body))
-                print('RequestId: {}'.format(
-                    response.headers.get('RequestId', False)))
-                print('JSON-код ответа сервера: \n{}'.format(u(response.json())))
-                break
-            else:
-                print('Произошла непредвиденная ошибка')
-                print('RequestId:  {}'.format(
-                    response.headers.get('RequestId', False)))
-                print('JSON-код запроса: {}'.format(body))
-                print('JSON-код ответа сервера: \n{}'.format(u(response.json())))
+
+            except Exception as e:
+                logging.error(f'ошибка: {e}')
                 break
 
-        except requests.exceptions.ConnectionError:
-            print('Произошла ошибка соединения с сервером API')
-            break
+        # json_string = json.dumps(body)
+        return response.text
 
-        except Exception as e:
-            print(f'ошибка: {e}')
-            break
+    def _get_platform_type(self, row):
+        if 'srch' in row['CampaignName']:
+            return 'поиск'
+        else:
+            return 'сеть'
 
-    # json_string = json.dumps(body)
+    def _get_campaign_category(self, row):
+        if 'dsa' in row['CampaignName']:
+            return 'dsa'
+        elif '-nz' in row['CampaignName']:
+            return 'nz'
+        elif '_nz' in row['CampaignName']:
+            return 'nz'
+        elif 'shop' in row['CampaignName']:
+            return 'shoping'
+        elif 'corporate' in row['CampaignName']:
+            return 'b2b'
+        elif 'promo' in row['CampaignName']:
+            return 'акции'
+        elif 'brand' in row['CampaignName']:
+            return 'бренд'
+        elif 'cat-cv' in row['CampaignName']:
+            return 'кат + вендор'
+        elif 'categor' in row['CampaignName']:
+            return 'категории'
+        elif 'compet' in row['CampaignName']:
+            return 'конкуренты'
+        elif 'config' in row['CampaignName']:
+            return 'конфигуратор'
+        elif 'rmkt' in row['CampaignName']:
+            return 'ремарктеинг'
+        elif 'usilenie' in row['CampaignName']:
+            return 'усиление'
+        else:
+            return 'разное'
 
-    return response.text
+    def get_all_direct_data(self):
+        combined_data = pd.DataFrame()
+        current_index = 0
+        temp_cache_path = self._get_file_path('cashe.csv')
 
+        for current_index, login in enumerate(self.logins):
+            try:
+                logging.info(
+                    f'\rвыгрузка №{current_index + 1}/{len(self.logins)}, '
+                    f'аккаунт: {login}'
+                )
+                data = self._get_direct_report(
+                    login,
+                    self.dates_list[0],
+                    self.dates_list[-1]
+                )
+                with open(temp_cache_path, 'w', encoding='utf-8') as file:
+                    file.write(data)
+                df = pd.read_csv(
+                    temp_cache_path,
+                    sep='	',
+                    encoding='cp1251',
+                    header=1
+                )
+                df['акаунт'] = login
+                combined_data = pd.concat([combined_data, df])
+                time.sleep(1)
+                current_index += 1
+            except Exception as e:
+                print(f'ошибка: {e}')
+                current_index += 1
 
-def get_platform_type(row):
-    if 'srch' in row['CampaignName']:
-        return 'поиск'
-    else:
-        return 'сеть'
-
-
-def get_campaign_category(row):
-    if 'dsa' in row['CampaignName']:
-        return 'dsa'
-    elif '-nz' in row['CampaignName']:
-        return 'nz'
-    elif '_nz' in row['CampaignName']:
-        return 'nz'
-    elif 'shop' in row['CampaignName']:
-        return 'shoping'
-    elif 'corporate' in row['CampaignName']:
-        return 'b2b'
-    elif 'promo' in row['CampaignName']:
-        return 'акции'
-    elif 'brand' in row['CampaignName']:
-        return 'бренд'
-    elif 'cat-cv' in row['CampaignName']:
-        return 'кат + вендор'
-    elif 'categor' in row['CampaignName']:
-        return 'категории'
-    elif 'compet' in row['CampaignName']:
-        return 'конкуренты'
-    elif 'config' in row['CampaignName']:
-        return 'конфигуратор'
-    elif 'rmkt' in row['CampaignName']:
-        return 'ремарктеинг'
-    elif 'usilenie' in row['CampaignName']:
-        return 'усиление'
-    else:
-        return 'разное'
-
-
-def get_all_direct_data():
-    combined_data = pd.DataFrame()
-    current_index = 0
-    script_path = os.path.abspath(str(getsourcefile(lambda: 0)))
-    temp_cache_path = f'{script_path[:-11]}/data/cashe.csv'
-
-    for current_index, login in enumerate(CLIENT_LOGINS):
-        try:
-            print(
-                f'\rвыгрузка №{current_index + 1}, аккаунт: {login}'
-            )
-            current_login = CLIENT_LOGINS[current_index]
-            data = get_direct_report(
-                token, current_login, dates_list[0], dates_list[-1])
-            file = open(temp_cache_path, "w")
-            file.write(data)
-            file.close()
-            f = pd.read_csv(temp_cache_path, sep='	',
-                            encoding='cp1251', header=1)
-            f['акаунт'] = CLIENT_LOGINS[current_index]
-            combined_data = pd.concat([combined_data, f])
-            time.sleep(1)
-            current_index += 1
-        except Exception as e:
-            print(f'ошибка: {e}')
-            current_index += 1
-
-    combined_data['источник'] = 'yandex'
-    combined_data['Cost'] = combined_data['Cost']*1.2/1000000
-    combined_data = combined_data[~combined_data['Date'].str.contains(
-        r'Total', case=False, na=False)]
-    combined_data['поиск/сеть'] = combined_data.apply(
-        get_platform_type, axis=1)
-    combined_data['тип'] = combined_data.apply(get_campaign_category, axis=1)
-    return combined_data
-
-
-def get_filtered_cache_data():
-    script_path = os.path.abspath(str(getsourcefile(lambda: 0)))
-    temp_cache_path = f'{script_path[:-11]}/data/cashe_new.csv'
-    old_df = pd.read_csv(temp_cache_path, sep=';', encoding='cp1251', header=0)
-    for dates in dates_list:
-        old_df = old_df[~old_df['Date'].fillna('').str.contains(
-            fr'{dates}', case=False, na=False
+        combined_data['источник'] = 'yandex'
+        combined_data['Cost'] = combined_data['Cost']*1.2/1000000
+        combined_data = combined_data[~combined_data['Date'].str.contains(
+            r'Total',
+            case=False,
+            na=False
         )]
-    return old_df
+        combined_data['поиск/сеть'] = combined_data.apply(
+            self._get_platform_type, axis=1)
+        combined_data['тип'] = combined_data.apply(
+            self._get_campaign_category, axis=1)
+        return combined_data
 
+    def get_filtered_cache_data(self):
+        temp_cache_path = self._get_file_path('cashe_new.csv')
+        old_df = pd.read_csv(
+            temp_cache_path,
+            sep=';',
+            encoding='cp1251',
+            header=0
+        )
+        for dates in self.dates_list:
+            old_df = old_df[~old_df['Date'].fillna('').str.contains(
+                fr'{dates}', case=False, na=False
+            )]
+        return old_df
 
-def save_data(df_new, old_df):
-    script_path = os.path.abspath(str(getsourcefile(lambda: 0)))
-    temp_cache_path = f'{script_path[:-11]}/data/cashe_new.csv'
-    for dates in dates_list:
-        old_df = old_df[~old_df['Date'].fillna('').str.contains(
-            fr'{dates}', case=False, na=False)]
+    def save_data(self, df_new, old_df):
+        temp_cache_path = self._get_file_path('cashe_new.csv')
+        for dates in self.dates_list:
+            old_df = old_df[~old_df['Date'].fillna('').str.contains(
+                fr'{dates}', case=False, na=False)]
 
-    old_df = pd.concat([df_new, old_df])
-    old_df.to_csv(
-        temp_cache_path,
-        index=False,
-        header=True,
-        sep=';',
-        encoding='cp1251'
-    )
+        old_df = pd.concat([df_new, old_df])
+        old_df.to_csv(
+            temp_cache_path,
+            index=False,
+            header=True,
+            sep=';',
+            encoding='cp1251'
+        )
