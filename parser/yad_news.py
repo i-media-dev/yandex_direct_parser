@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+from typing import Any, Optional
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -22,6 +23,7 @@ setup_logging()
 
 
 class DataSaveClient:
+    """Класс для получения и сохранения данных отчетов из Яндекс.Директ."""
 
     def __init__(
         self,
@@ -35,28 +37,37 @@ class DataSaveClient:
         self.dates_list = dates_list
         self.folder = folder_name
 
-    def _decode_if_bytes(self, x):
+    def _decode_if_bytes(self, x: Any) -> Any:
+        """
+        Защищенный метод. Декодирует байтовую строку в UTF-8,
+        если передан bytes.
+        """
         if type(x) is type(b''):
             return x.decode('utf8')
         else:
             return x
 
-    def _get_file_path(self, filename: str):
+    def _get_file_path(self, filename: str) -> Path:
+        """Защищенный метод. Создает путь к файлу в указанной папке."""
         try:
             file_path = Path(__file__).parent.parent / self.folder
             file_path.mkdir(parents=True, exist_ok=True)
             return file_path / filename
         except Exception as e:
             logging.error(f'Ошибка: {e}')
+            raise
 
     def _get_direct_report(
         self,
         login: str,
         date_from: str,
         date_to: str
-    ):
+    ) -> str:
+        """
+        Защищенный метод.
+        Получает отчет из Яндекс.Директ для указанного логина и периода.
+        """
 
-        response = requests.Response
         headers = {
             "Authorization": "Bearer " + self.token,
             "Client-Login": login,
@@ -154,22 +165,25 @@ class DataSaveClient:
                 logging.error(f'ошибка: {e}')
                 break
 
-        # json_string = json.dumps(body)
         return response.text
 
-    def _get_platform_type(self, row):
+    def _get_platform_type(self, row) -> str:
         if 'srch' in row['CampaignName']:
             return 'поиск'
         else:
             return 'сеть'
 
-    def _get_campaign_category(self, row):
+    def _get_campaign_category(self, row) -> str:
         for tag, value in TAGS.items():
             if tag in row['CampaignName']:
                 return value
         return 'разное'
 
-    def get_all_direct_data(self):
+    def get_all_direct_data(self) -> pd.DataFrame:
+        """
+        Метод получает данные из Яндекс.Директ
+        для всех клиентов и периодов.
+        """
         combined_data = pd.DataFrame()
         current_index = 0
         temp_cache_path = self._get_file_path('cashe.csv')
@@ -214,7 +228,8 @@ class DataSaveClient:
             self._get_campaign_category, axis=1)
         return combined_data
 
-    def get_filtered_cache_data(self):
+    def get_filtered_cache_data(self) -> pd.DataFrame:
+        """Метод получает отфильтрованные данные из кэш-файла."""
         temp_cache_path = self._get_file_path('cashe_new.csv')
         try:
             old_df = pd.read_csv(
@@ -238,7 +253,8 @@ class DataSaveClient:
             logging.error(f'Ошибка: {e}')
             raise
 
-    def save_data(self, df_new, old_df):
+    def save_data(self, df_new, old_df) -> None:
+        """Метод сохраняет новые данные, объединяя с существующими."""
         try:
             temp_cache_path = self._get_file_path('cashe_new.csv')
             if df_new.empty:

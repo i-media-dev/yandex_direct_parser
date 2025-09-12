@@ -1,8 +1,14 @@
 YAD_REPORTS_URL = 'https://api.direct.yandex.com/json/v5/reports'
+"""URL api для запроса отчета."""
 
 REPORT_NAME = 'all_reports1'
+"""Имя отчета по умолчанию."""
 
 DEFAULT_FOLDER = 'data'
+"""Папка для сохранения .csv файлов по умолчанию."""
+
+DAYS_TO_GENERATE = 45
+"""Количество дней для генерации списка дат по умолчанию."""
 
 REPORT_FIELDS = [
     "Date",
@@ -120,3 +126,4 @@ CLIENT_LOGINS = [
     'porg-5gi7f4um', 'porg-5yb5r4kg', 'porg-u3ymtw4n'
 
 ]
+"""Список логинов."""
