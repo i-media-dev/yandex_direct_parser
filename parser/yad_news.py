@@ -1,7 +1,7 @@
 import json
 import logging
 import time
-from typing import Any, Optional
+from typing import Any
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -9,12 +9,12 @@ import pandas as pd
 import requests
 
 from parser.constants import (
+    CAMPAIGN_CATEGORIES,
     CLIENT_LOGINS,
     DEFAULT_FOLDER,
-    YAD_REPORTS_URL,
     REPORT_FIELDS,
     REPORT_NAME,
-    TAGS
+    YAD_REPORTS_URL
 )
 from parser.logging_config import setup_logging
 
@@ -174,7 +174,7 @@ class DataSaveClient:
             return 'сеть'
 
     def _get_campaign_category(self, row) -> str:
-        for tag, value in TAGS.items():
+        for tag, value in CAMPAIGN_CATEGORIES.items():
             if tag in row['CampaignName']:
                 return value
         return 'разное'

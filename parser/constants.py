@@ -20,7 +20,7 @@ REPORT_FIELDS = [
     "Cost"
 ],
 
-TAGS = {
+CAMPAIGN_CATEGORIES = {
     'dsa': 'dsa',
     '-nz': 'nz',
     '_nz': 'nz',
