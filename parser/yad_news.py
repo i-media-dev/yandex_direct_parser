@@ -12,6 +12,8 @@ from parser.constants import (
     CAMPAIGN_CATEGORIES,
     CLIENT_LOGINS,
     DEFAULT_FOLDER,
+    DEFAULT_RETURNES,
+    PLATFORM_TYPES,
     REPORT_FIELDS,
     REPORT_NAME,
     YAD_REPORTS_URL
@@ -168,16 +170,23 @@ class DataSaveClient:
         return response.text
 
     def _get_platform_type(self, row) -> str:
-        if 'srch' in row['CampaignName']:
-            return 'поиск'
-        else:
-            return 'сеть'
+        try:
+            for tag, value in PLATFORM_TYPES.items():
+                if tag in row['CampaignName']:
+                    return value
+            else:
+                return DEFAULT_RETURNES.get('platform', '')
+        except (AttributeError, IndexError, KeyError):
+            return DEFAULT_RETURNES.get('error', '')
 
     def _get_campaign_category(self, row) -> str:
-        for tag, value in CAMPAIGN_CATEGORIES.items():
-            if tag in row['CampaignName']:
-                return value
-        return 'разное'
+        try:
+            for tag, value in CAMPAIGN_CATEGORIES.items():
+                if tag in row['CampaignName']:
+                    return value
+            return DEFAULT_RETURNES.get('campaign', '')
+        except (AttributeError, IndexError, KeyError):
+            return DEFAULT_RETURNES.get('error', '')
 
     def get_all_direct_data(self) -> pd.DataFrame:
         """

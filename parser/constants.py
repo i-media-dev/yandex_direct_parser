@@ -36,6 +36,16 @@ CAMPAIGN_CATEGORIES = {
     'usilenie': 'усиление',
 }
 
+PLATFORM_TYPES = {
+    'srch': 'поиск'
+}
+
+DEFAULT_RETURNES = {
+    'campaign': 'разное',
+    'platform': 'сеть',
+    'error': 'unknown'
+}
+
 CLIENT_LOGINS = [
     'citilink-nvsb', 'imedia-citilinkweb',
     'imedia-citilink2', 'imedia-citilink-blg',
