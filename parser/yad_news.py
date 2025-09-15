@@ -34,6 +34,8 @@ class DataSaveClient:
         login: list = CLIENT_LOGINS,
         folder_name: str = DEFAULT_FOLDER
     ):
+        if not token:
+            logging.error('Отсутсвует токен')
         self.token = token
         self.logins = login
         self.dates_list = dates_list
@@ -188,7 +190,7 @@ class DataSaveClient:
         except (AttributeError, IndexError, KeyError):
             return DEFAULT_RETURNES.get('error', '')
 
-    def get_all_direct_data(self) -> pd.DataFrame:
+    def _get_all_direct_data(self) -> pd.DataFrame:
         """
         Метод получает данные из Яндекс.Директ
         для всех клиентов и периодов.
@@ -237,7 +239,7 @@ class DataSaveClient:
             self._get_campaign_category, axis=1)
         return combined_data
 
-    def get_filtered_cache_data(self) -> pd.DataFrame:
+    def _get_filtered_cache_data(self) -> pd.DataFrame:
         """Метод получает отфильтрованные данные из кэш-файла."""
         temp_cache_path = self._get_file_path('cashe_new.csv')
         try:
@@ -262,14 +264,16 @@ class DataSaveClient:
             logging.error(f'Ошибка: {e}')
             raise
 
-    def save_data(self, df_new, old_df) -> None:
+    def save_data(self) -> None:
         """Метод сохраняет новые данные, объединяя с существующими."""
+        df_new = self._get_all_direct_data()
+        df_old = self._get_filtered_cache_data()
         try:
             temp_cache_path = self._get_file_path('cashe_new.csv')
             if df_new.empty:
                 logging.warning('Нет новых данных для сохранения')
                 return
-            if not isinstance(old_df, pd.DataFrame) or old_df.empty:
+            if not isinstance(df_old, pd.DataFrame) or df_old.empty:
                 df_new.to_csv(
                     temp_cache_path,
                     index=False,
@@ -282,11 +286,11 @@ class DataSaveClient:
                 )
                 return
             for dates in self.dates_list:
-                old_df = old_df[~old_df['Date'].fillna('').str.contains(
+                df_old = df_old[~df_old['Date'].fillna('').str.contains(
                     fr'{dates}', case=False, na=False)]
 
-            old_df = pd.concat([df_new, old_df])
-            old_df.to_csv(
+            df_old = pd.concat([df_new, df_old])
+            df_old.to_csv(
                 temp_cache_path,
                 index=False,
                 header=True,
