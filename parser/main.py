@@ -12,7 +12,7 @@ load_dotenv()
 @time_of_script
 def main():
     """Основная логика скрипта."""
-    token = str(os.getenv('YANDEX_AUTH_TOKEN'))
+    token = str(os.getenv('YANDEX_DIRECT_TOKEN'))
     date_list = get_date_list()
     saver = DataSaveClient(token, date_list)
     saver.save_data()
