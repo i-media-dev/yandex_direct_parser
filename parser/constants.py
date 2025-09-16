@@ -10,6 +10,12 @@ DEFAULT_FOLDER = 'data'
 DAYS_TO_GENERATE = 45
 """Количество дней для генерации списка дат по умолчанию."""
 
+EAPTEKA_ID = ''
+"""ID Еаптека."""
+
+CITILINK_ID = ''
+"""ID Ситилинк."""
+
 REPORT_FIELDS = [
     "Date",
     "CampaignName",
@@ -46,7 +52,7 @@ DEFAULT_RETURNES = {
     'error': 'unknown'
 }
 
-CLIENT_LOGINS = [
+CITILINK_CLIENT_LOGINS = [
     'citilink-nvsb', 'imedia-citilinkweb',
     'imedia-citilink2', 'imedia-citilink-blg',
     'imedia-citilink-cat', 'imedia-citilink-chb',
@@ -136,4 +142,9 @@ CLIENT_LOGINS = [
     'porg-5gi7f4um', 'porg-5yb5r4kg', 'porg-u3ymtw4n'
 
 ]
-"""Список логинов."""
+"""Список логинов Ситилинк."""
+
+EAPTEKA_CLIENT_LOGINS = [
+    'imedia-eapteka'
+]
+"""Список логинов Еаптека."""

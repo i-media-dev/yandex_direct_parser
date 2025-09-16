@@ -10,7 +10,6 @@ import requests
 
 from parser.constants import (
     CAMPAIGN_CATEGORIES,
-    CLIENT_LOGINS,
     DEFAULT_FOLDER,
     DEFAULT_RETURNES,
     PLATFORM_TYPES,
@@ -24,18 +23,18 @@ load_dotenv()
 setup_logging()
 
 
-class DataSaveClient:
+class DirectSaveClient:
     """Класс для получения и сохранения данных отчетов из Яндекс.Директ."""
 
     def __init__(
         self,
         token: str,
         dates_list: list,
-        login: list = CLIENT_LOGINS,
+        login: list,
         folder_name: str = DEFAULT_FOLDER
     ):
         if not token:
-            logging.error('Отсутсвует токен')
+            logging.error('Токен отсутствует или не действителен')
         self.token = token
         self.logins = login
         self.dates_list = dates_list
@@ -190,14 +189,14 @@ class DataSaveClient:
         except (AttributeError, IndexError, KeyError):
             return DEFAULT_RETURNES.get('error', '')
 
-    def _get_all_direct_data(self) -> pd.DataFrame:
+    def _get_all_direct_data(self, filename_temp) -> pd.DataFrame:
         """
         Метод получает данные из Яндекс.Директ
         для всех клиентов и периодов.
         """
         combined_data = pd.DataFrame()
         current_index = 0
-        temp_cache_path = self._get_file_path('cashe.csv')
+        temp_cache_path = self._get_file_path(filename_temp)
 
         for current_index, login in enumerate(self.logins):
             try:
@@ -239,9 +238,9 @@ class DataSaveClient:
             self._get_campaign_category, axis=1)
         return combined_data
 
-    def _get_filtered_cache_data(self) -> pd.DataFrame:
+    def _get_filtered_cache_data(self, filename_data: str) -> pd.DataFrame:
         """Метод получает отфильтрованные данные из кэш-файла."""
-        temp_cache_path = self._get_file_path('cashe_new.csv')
+        temp_cache_path = self._get_file_path(filename_data)
         try:
             old_df = pd.read_csv(
                 temp_cache_path,
@@ -264,12 +263,12 @@ class DataSaveClient:
             logging.error(f'Ошибка: {e}')
             raise
 
-    def save_data(self) -> None:
+    def save_data(self, filename_temp: str, filename_data: str) -> None:
         """Метод сохраняет новые данные, объединяя с существующими."""
-        df_new = self._get_all_direct_data()
-        df_old = self._get_filtered_cache_data()
+        df_new = self._get_all_direct_data(filename_temp)
+        df_old = self._get_filtered_cache_data(filename_data)
         try:
-            temp_cache_path = self._get_file_path('cashe_new.csv')
+            temp_cache_path = self._get_file_path(filename_data)
             if df_new.empty:
                 logging.warning('Нет новых данных для сохранения')
                 return
@@ -287,7 +286,10 @@ class DataSaveClient:
                 return
             for dates in self.dates_list:
                 df_old = df_old[~df_old['Date'].fillna('').str.contains(
-                    fr'{dates}', case=False, na=False)]
+                    fr'{dates}',
+                    case=False,
+                    na=False
+                )]
 
             df_old = pd.concat([df_new, df_old])
             df_old.to_csv(
