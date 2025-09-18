@@ -1,4 +1,4 @@
-YAD_REPORTS_URL = 'https://api.direct.yandex.com/json/v5/reports'
+YANDEX_DIRECT_URL = 'https://api.direct.yandex.com/json/v5/reports'
 """URL api для запроса отчета."""
 
 REPORT_NAME = 'all_reports1'

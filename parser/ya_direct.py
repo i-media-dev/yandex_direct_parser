@@ -15,7 +15,7 @@ from parser.constants import (
     PLATFORM_TYPES,
     REPORT_FIELDS,
     REPORT_NAME,
-    YAD_REPORTS_URL
+    YANDEX_DIRECT_URL
 )
 from parser.logging_config import setup_logging
 
@@ -99,7 +99,7 @@ class DirectSaveClient:
         while True:
             try:
                 response = requests.post(
-                    YAD_REPORTS_URL,
+                    YANDEX_DIRECT_URL,
                     body,
                     headers=headers
                 )
@@ -249,9 +249,14 @@ class DirectSaveClient:
                 header=0
             )
             for dates in self.dates_list:
-                old_df = old_df[~old_df['Date'].fillna('').str.contains(
-                    fr'{dates}', case=False, na=False
-                )]
+                old_df = old_df[
+                    ~old_df['Date'].fillna('').str.contains(
+                        fr'{dates}',
+                        case=False,
+                        na=False
+                    )
+                ]
+
             return old_df
         except FileNotFoundError:
             logging.warning('Файл кэша не найден. Первый запуск.')
