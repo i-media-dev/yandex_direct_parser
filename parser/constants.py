@@ -1,6 +1,9 @@
 YANDEX_DIRECT_URL = 'https://api.direct.yandex.com/json/v5/reports'
 """URL api для запроса отчета."""
 
+DATE_FORMAT = '%Y-%m-%d'
+"""Формат дат по умолчанию ('%Y-%m-%d')."""
+
 REPORT_NAME = 'all_reports1'
 """Имя отчета по умолчанию."""
 

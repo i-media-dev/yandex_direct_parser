@@ -1,6 +1,6 @@
 import datetime as dt
 
-from parser.constants import DAYS_TO_GENERATE
+from parser.constants import DATE_FORMAT, DAYS_TO_GENERATE
 
 
 def get_date_list() -> list[str]:
@@ -9,6 +9,6 @@ def get_date_list() -> list[str]:
     for i in range(DAYS_TO_GENERATE, 0, -1):
         tempday = dt.datetime.now()
         tempday -= dt.timedelta(days=i)
-        tempday_str = tempday.strftime('%Y-%m-%d')
+        tempday_str = tempday.strftime(DATE_FORMAT)
         dates_list.append(tempday_str)
     return dates_list
